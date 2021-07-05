@@ -100,9 +100,12 @@ app.post("/api/movies", (req, res) => {
     [title, director, year, color, duration],
     (err, result) => {
       if (err) {
+        console.error(err);
         res.status(500).send("Error saving the movie");
       } else {
-        res.status(201).send("Movie successfully saved");
+        const id = result.insertId;
+        const createdUser = { id, firstname, lastname, email };
+        res.status(201).json(createdUser);
       }
     }
   );
@@ -111,18 +114,70 @@ app.post("/api/movies", (req, res) => {
 //Updating data from movies DB
 
 app.put("/api/movies/:id", (req, res) => {
-  const userID = req.params.id;
-  const userPropsToUpdate = req.body;
-  console.log(userID);
-
+  const userId = req.params.id;
   connection.query(
-    "UPDATE movies SET ? WHERE id = ?",
-    [userPropsToUpdate, userID],
-    (err) => {
+    "SELECT * FROM movies WHERE id = ?",
+    [userId],
+    (err, selectResults) => {
       if (err) {
-        res.status(500).send("error");
+        console.log(err);
+        res.status(500).send("Error updating a user");
       } else {
-        res.status(200).send("User updated successfully");
+        const userFromDb = selectResults[0];
+        if (userFromDb) {
+          const userPropsToUpdate = req.body;
+          connection.query(
+            "UPDATE movies SET ? WHERE id = ?",
+            [userPropsToUpdate, userId],
+            (err) => {
+              if (err) {
+                console.log(err);
+                res.status(500).send("Error updating a user");
+              } else {
+                const updated = { ...userFromDb, ...userPropsToUpdate };
+                res.status(200).json(updated);
+              }
+            }
+          );
+        } else {
+          res.status(404).send(`User with id ${userId} not found.`);
+        }
+      }
+    }
+  );
+});
+
+// complete user object with all its attributes
+
+app.put("/api/users/:id", (req, res) => {
+  const userId = req.params.id;
+  connection.query(
+    "SELECT * FROM users WHERE id = ?",
+    [userId],
+    (err, selectResults) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send("Error updating a user");
+      } else {
+        const userFromDb = selectResults[0];
+        if (userFromDb) {
+          const userPropsToUpdate = req.body;
+          connection.query(
+            "UPDATE users SET ? WHERE id = ?",
+            [userPropsToUpdate, userId],
+            (err) => {
+              if (err) {
+                console.log(err);
+                res.status(500).send("Error updating a user");
+              } else {
+                const updated = { ...userFromDb, ...userPropsToUpdate };
+                res.status(200).json(updated);
+              }
+            }
+          );
+        } else {
+          res.status(404).send(`User with id ${userId} not found.`);
+        }
       }
     }
   );
@@ -161,13 +216,20 @@ app.post("/api/users", (req, res) => {
     [First_name, Last_name, Email],
     (err, result) => {
       if (err) {
+        console.log(err);
         res.status(500).send("Error saving the users");
       } else {
-        res.status(201).send("Users successfully saved");
+        //to return a newly created user from our route
+        const id = result.insertId;
+
+        const createdUser = { id, firstname, lastname, email };
+        res.status(201).json(createdUser);
       }
     }
   );
 });
+
+//Post and Put in detail
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
