@@ -1,13 +1,16 @@
-# Express-Quest-01
+# Node.js --- Express
 
-This repo is used for express quests 1 - 6
+In this Repo I have been learning:
 
-## Installation
+-How to read data from a database
 
-### `npm install`
-Download the folder and run npm install to install all the node packages
+-Post, Put and Delete data
 
-## Run
-### `npm start`
-You can run this project using npm start
-# Node.js---Express
+-Get in detail
+
+## Postman 
+
+I´ve been using postman to test my requests
+
+
+
