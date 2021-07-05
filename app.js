@@ -89,26 +89,158 @@ app.get("/api/users/:id", (req, res) => {
   );
 });
 
-//How to insert data into your database
-
-app.post("/api/movies", (req, res) => {
-  const { title, director, year, color, duration } = req.body;
-  //conection query allows us to insert or write query
+app.get("/api/movies/:id", (req, res) => {
+  const movieId = req.params.id;
   connection.query(
-    //??? these values are going to be replace by real values
-    "INSERT INTO MOVIES(title, director, year, color,duration)VALUES (?, ?, ?, ?, ?)",
-    [title, director, year, color, duration],
-    (err, result) => {
+    "SELECT * FROM movies WHERE id = ?",
+    [movieId],
+    (err, results) => {
       if (err) {
-        console.error(err);
-        res.status(500).send("Error saving the movie");
+        res.status(500).send("Error retrieving movie from database");
       } else {
-        const id = result.insertId;
-        const createdUser = { id, firstname, lastname, email };
-        res.status(201).json(createdUser);
+        if (results.length) res.json(results[0]);
+        else res.status(404).send("Movie not found");
       }
     }
   );
+});
+
+//How to insert data into your database
+
+// app.post("/api/movies", (req, res) => {
+//   const { title, director, year, color, duration } = req.body;
+//   //conection query allows us to insert or write query
+//   connection.query(
+//     //??? these values are going to be replace by real values
+//     "INSERT INTO MOVIES(title, director, year, color,duration)VALUES (?, ?, ?, ?, ?)",
+//     [title, director, year, color, duration],
+//     (err, result) => {
+//       if (err) {
+//         console.error(err);
+//         res.status(500).send("Error saving the movie");
+//       } else {
+//         const id = result.insertId;
+//         const createdUser = { id, firstname, lastname, email };
+//         res.status(201).json(createdUser);
+//       }
+//     }
+//   );
+// });
+
+app.post("/api/users", (req, res) => {
+  // Checking if all required fields are filled in and if email has right format and is now duplicate
+  const { firstname, lastname, email, city, language } = req.body;
+  const db = connection.promise();
+  let validationErrors = null;
+
+  db.query("SELECT * FROM users WHERE email = ?", [email])
+    .then(([result]) => {
+      if (result[0]) return Promise.reject("DUPLICATE_EMAIL");
+      validationErrors = Joi.object({
+        email: Joi.string().email().max(255).required(),
+        firstname: Joi.string().max(255).required(),
+        lastname: Joi.string().max(255).required(),
+        city: Joi.string().max(255),
+        language: Joi.string().max(255),
+      }).validate(
+        { firstname, lastname, email, city, language },
+        { abortEarly: false }
+      ).error;
+      if (validationErrors) return Promise.reject("INVALID_DATA");
+      return db.query(
+        "INSERT INTO users (firstname, lastname, email) VALUES (?, ?, ?)",
+        [firstname, lastname, email]
+      );
+    })
+    .then(([{ insertId }]) => {
+      res.status(201).json({ id: insertId, firstname, lastname, email });
+    })
+    .catch((err) => {
+      console.error(err);
+      if (err === "DUPLICATE_EMAIL")
+        res.status(409).json({ message: "This email is already used" });
+      else if (err === "INVALID_DATA")
+        res.status(422).json({ validationErrors });
+      else res.status(500).send("Error saving the user");
+    });
+});
+
+// This route will update a user in the DB
+app.put("/api/users/:id", (req, res) => {
+  const { firstname, lastname, email, city, language } = req.body;
+  const userId = req.params.id;
+  const db = connection.promise();
+  let existingUser = null;
+  let validationErrors = null;
+  db.query("SELECT * FROM users WHERE id = ?", [userId])
+    .then(([results]) => {
+      existingUser = results[0];
+      if (!existingUser) return Promise.reject("RECORD_NOT_FOUND");
+      validationErrors = Joi.object({
+        email: Joi.string().email().max(255),
+        firstname: Joi.string().max(255),
+        lastname: Joi.string().max(255),
+        city: Joi.string().max(255),
+        language: Joi.string().max(255),
+      }).validate(
+        { firstname, lastname, email, city, language },
+        { abortEarly: false }
+      ).error;
+      if (validationErrors) return Promise.reject("INVALID_DATA");
+      return db.query("UPDATE users SET ? WHERE id = ?", [req.body, userId]);
+    })
+    .then(() => {
+      res.status(200).json({ ...existingUser, ...req.body });
+    })
+    .catch((err) => {
+      console.error(err);
+      if (err === "RECORD_NOT_FOUND")
+        res.status(404).send(`User with id ${userId} not found.`);
+      else if (err === "INVALID_DATA")
+        res.status(422).json({ validationErrors });
+      else res.status(500).send("Error updating a user");
+    });
+});
+
+// This route will update a movie in the DB
+app.put("/api/movies/:id", (req, res) => {
+  const movieId = req.params.id;
+  const { title, director, year, color, duration } = req.body;
+  const db = connection.promise();
+  let existingMovie = null;
+  const { error } = Joi.object({
+    title: Joi.string().max(255),
+    director: Joi.string().max(255),
+    year: Joi.number().integer().greater(1887),
+    color: Joi.boolean().truthy(1).falsy(0),
+    duration: Joi.number().integer().positive(),
+  }).validate(
+    { title, director, year, color, duration },
+    { abortEarly: false }
+  );
+
+  if (error) {
+    res.status(422).json({ validationErrors: error.details });
+  } else {
+    db.query("SELECT * FROM movies WHERE id = ?", [movieId])
+      .then(([results]) => {
+        existingMovie = results[0];
+        if (!existingMovie) return Promise.reject("RECORD_NOT_FOUND");
+        return db.query("UPDATE movies SET ? WHERE id = ?", [
+          req.body,
+          movieId,
+        ]);
+      })
+      .then(() => {
+        res.status(200).json({ ...existingMovie, ...req.body });
+      })
+      .catch((err) => {
+        console.error(err);
+        if (err === "RECORD_NOT_FOUND")
+          res.status(404).send(`Movie with id ${movieId} not found.`);
+        else res.status(500).send("Error updating a movie");
+      });
+  }
 });
 
 //Updating data from movies DB
@@ -208,12 +340,12 @@ app.post("/api/users", (req, res) => {
 });
 
 app.post("/api/users", (req, res) => {
-  const { First_name, Last_name, Email } = req.body;
+  const { firstname, lastname, email, city, language } = req.body;
   //conection query allows us to insert or write query
   connection.query(
     //??? these values are going to be replace by real values
-    "INSERT INTO USERS (First_name, Last_name, Email)VALUES (?, ?, ?)",
-    [First_name, Last_name, Email],
+    "INSERT INTO USERS (First_name, Last_name, Email, City, Language)VALUES (?, ?, ?,?,?)",
+    [firstname, lastname, email, city, language],
     (err, result) => {
       if (err) {
         console.log(err);
@@ -222,12 +354,15 @@ app.post("/api/users", (req, res) => {
         //to return a newly created user from our route
         const id = result.insertId;
 
-        const createdUser = { id, firstname, lastname, email };
+        const createdUser = { id, firstname, lastname, email, city, language };
         res.status(201).json(createdUser);
       }
     }
   );
 });
+
+//Validate user input
+//Return appropriate responses in case of error
 
 //Post and Put in detail
 
