@@ -2,11 +2,11 @@
 
 In this Repo I have been learning:
 
--How to read data from a database
+How to read data from a database
 
--Post, Put and Delete data
+Post, Put and Delete data
 
--Get in detail
+Get in detail
 
 ## Postman 
 
